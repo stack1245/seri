@@ -52,7 +52,7 @@ class Seri(discord.Bot):
         """초기화 로직"""
         self.data_manager.load_data()
         
-        self.extension_loader.load_all_extensions("commands")
+        self.extension_loader.load_extension_groups("commands")
         if self.extension_loader.failed_extensions:
             for ext_name, error in self.extension_loader.failed_extensions:
                 logger.error(f"명령어 로드 실패: {ext_name}\n{error}")
