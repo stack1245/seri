@@ -1,9 +1,8 @@
 """Seri - 임베드 빌더 봇"""
 from __future__ import annotations
-import asyncio
-import logging
 import os
-from typing import Optional
+import asyncio
+
 import discord
 from dotenv import load_dotenv
 
@@ -15,6 +14,8 @@ from utils.logging_config import configure_logging
 
 load_dotenv()
 configure_logging()
+
+import logging
 logger = logging.getLogger(__name__)
 
 
@@ -35,25 +36,40 @@ class Seri(discord.Bot):
             )
         )
         
-        self.data_manager: Optional[DataManager] = None
-        self._auto_save_task: Optional[asyncio.Task] = None
+        self.data_manager: DataManager | None = None
+        self._auto_save_task: asyncio.Task | None = None
+        self._initialized = False
 
     async def on_ready(self) -> None:
         """봇이 준비되었을 때 호출"""
-        print(f"[{self.user.name}] 준비 완료")
+        if self._initialized or not self.user:
+            return
         
-        # 데이터 로드
-        if self.data_manager is None:
-            self.data_manager = DataManager(self)
-            self.data_manager.load_data()
-        
-        # 자동 저장 루프 시작
-        if self._auto_save_task is None or self._auto_save_task.done():
-            self._auto_save_task = asyncio.create_task(self._auto_save_loop())
-        
-        # 명령어 로드
-        loader = ExtensionLoader(self)
-        loader.load_extension_groups("commands")
+        try:
+            # 데이터 로드
+            if self.data_manager is None:
+                self.data_manager = DataManager(self)
+                self.data_manager.load_data()
+            
+            # 명령어 로드
+            loader = ExtensionLoader(self)
+            loader.load_extension_groups("commands")
+            
+            # 로드 실패시만 로그
+            if loader.failed_extensions:
+                for ext_name, error in loader.failed_extensions:
+                    logger.error(f"명령어 로드 실패: {ext_name}\n{error}")
+            
+            # 자동 저장 시작
+            if self._auto_save_task is None or self._auto_save_task.done():
+                self._auto_save_task = asyncio.create_task(self._auto_save_loop())
+            
+            self._initialized = True
+            print(f"[{self.user.name}] 준비 완료")
+            
+        except Exception as e:
+            logger.error(f"봇 초기화 실패: {e}", exc_info=e)
+            await self.close()
 
     async def _auto_save_loop(self) -> None:
         """주기적으로 데이터 저장 (5분마다)"""
@@ -100,13 +116,19 @@ class Seri(discord.Bot):
         # 최종 저장
         if self.data_manager:
             self.data_manager.save_data()
-            print(f"[{self.user.name}] 데이터 저장 완료")
+            logger.debug("봇 종료 전 데이터 저장 완료")
         
         await super().close()
 
 
 def main():
     """메인 진입점"""
+    import sys
+    
+    # Python 3.14+ 이벤트 루프 정책 설정
+    if sys.platform == 'win32':
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
     token = os.getenv("DISCORD_TOKEN")
     if not token:
         logger.error("DISCORD_TOKEN이 설정되지 않았습니다.")
