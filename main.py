@@ -53,8 +53,7 @@ class Seri(discord.Bot):
         
         # 명령어 로드
         loader = ExtensionLoader(self)
-        count = loader.load_extension_groups("commands")
-        print(f"[{self.user.name}] {loader.get_summary()}")
+        loader.load_extension_groups("commands")
 
     async def _auto_save_loop(self) -> None:
         """주기적으로 데이터 저장 (5분마다)"""
